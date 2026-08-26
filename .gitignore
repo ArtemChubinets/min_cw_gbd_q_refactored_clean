@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+
+# Native and Cython build artifacts
+build/
+dist/
+*.so
+*.dll
+*.dylib
+*.o
+
+# Benchmark output
+min_cw_gbd_q/benchmarks/bounded_runner/results*/
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
