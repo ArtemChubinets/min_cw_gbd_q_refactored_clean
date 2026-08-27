@@ -6,7 +6,7 @@ article is the source of truth.  Deliberately isolated from estimates_q.py
 silently falls back to the affine convention.
 
 The article models the number of visible projective classes by an independent
-Poisson process per weight — a MODEL, not an exact statement.  This module only
+Poisson process per weight - a MODEL, not an exact statement.  This module only
 evaluates the article's expectation formulas; it does not assert the Poisson
 model is exact.
 

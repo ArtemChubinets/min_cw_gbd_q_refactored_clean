@@ -1,13 +1,13 @@
 /*
  * min_cw_gbd_fq.c - Generalized Birthday Decoding over arbitrary finite fields F_q
- * 
+ *
  * Generalizes the binary min_cw_gbd_c.c algorithm to work over any finite field F_q.
  * Key differences from binary version:
  * - Field arithmetic instead of XOR
- * - General q-ary Gray code enumeration 
+ * - General q-ary Gray code enumeration
  * - Hash table for arbitrary field elements as keys
  * - Optimized field operations (addition, multiplication)
- * 
+ *
  * Author: Based on binary version, extended for F_q
  * Target: Production-quality performance for academic comparison vs GAP algorithms
  */
@@ -48,7 +48,7 @@ typedef struct hash_entry {
 // Hash table
 typedef struct {
     hash_entry_t** buckets;          // Bucket array
-    int num_buckets;                 // Number of buckets  
+    int num_buckets;                 // Number of buckets
     int key_size;                    // Size of key (s)
 } hash_table_t;
 
@@ -58,15 +58,15 @@ typedef struct {
 
 static field_t* field_init(int q, const field_elem_t* add_table, const field_elem_t* mul_table) {
     if (q <= 1 || q > MAX_FIELD_SIZE) return NULL;
-    
+
     field_t* field = malloc(sizeof(field_t));
     if (!field) return NULL;
-    
+
     field->q = q;
     field->add_table = malloc(q * q * sizeof(field_elem_t));
-    field->mul_table = malloc(q * q * sizeof(field_elem_t));  
+    field->mul_table = malloc(q * q * sizeof(field_elem_t));
     field->neg_table = malloc(q * sizeof(field_elem_t));
-    
+
     if (!field->add_table || !field->mul_table || !field->neg_table) {
         free(field->add_table);
         free(field->mul_table);
@@ -74,11 +74,11 @@ static field_t* field_init(int q, const field_elem_t* add_table, const field_ele
         free(field);
         return NULL;
     }
-    
+
     // Copy tables
     memcpy(field->add_table, add_table, q * q * sizeof(field_elem_t));
     memcpy(field->mul_table, mul_table, q * q * sizeof(field_elem_t));
-    
+
     // Compute negation table: find -a such that a + (-a) = 0
     for (int a = 0; a < q; a++) {
         field->neg_table[a] = 0; // default
@@ -89,7 +89,7 @@ static field_t* field_init(int q, const field_elem_t* add_table, const field_ele
             }
         }
     }
-    
+
     return field;
 }
 
@@ -121,15 +121,15 @@ static inline field_elem_t field_neg(const field_t* field, field_elem_t a) {
 static fq_vector_t* vector_alloc(int length) {
     fq_vector_t* vec = malloc(sizeof(fq_vector_t));
     if (!vec) return NULL;
-    
+
     vec->coords = calloc(length, sizeof(field_elem_t));
     vec->length = length;
-    
+
     if (!vec->coords) {
         free(vec);
         return NULL;
     }
-    
+
     return vec;
 }
 
@@ -171,7 +171,7 @@ static void qary_gray_increment(field_elem_t* digits, int k, int q, int* changed
         digits[pos] = 0;
         pos++;
     }
-    
+
     if (pos < k) {
         digits[pos]++;
         *changed_pos = pos;
@@ -195,16 +195,16 @@ static uint32_t hash_key(const field_elem_t* key, int key_size, int q) {
 static hash_table_t* hash_table_create(int num_buckets, int key_size) {
     hash_table_t* table = malloc(sizeof(hash_table_t));
     if (!table) return NULL;
-    
+
     table->buckets = calloc(num_buckets, sizeof(hash_entry_t*));
     table->num_buckets = num_buckets;
     table->key_size = key_size;
-    
+
     if (!table->buckets) {
         free(table);
         return NULL;
     }
-    
+
     return table;
 }
 
@@ -227,16 +227,16 @@ static void hash_table_free(hash_table_t* table) {
 static void hash_table_insert(hash_table_t* table, const field_elem_t* key, uint32_t gray_index, int q) {
     uint32_t hash = hash_key(key, table->key_size, q);
     int bucket = hash % table->num_buckets;
-    
+
     hash_entry_t* entry = malloc(sizeof(hash_entry_t));
     if (!entry) return;
-    
+
     entry->key = malloc(table->key_size * sizeof(field_elem_t));
     if (!entry->key) {
         free(entry);
         return;
     }
-    
+
     memcpy(entry->key, key, table->key_size * sizeof(field_elem_t));
     entry->gray_index = gray_index;
     entry->next = table->buckets[bucket];
@@ -246,7 +246,7 @@ static void hash_table_insert(hash_table_t* table, const field_elem_t* key, uint
 static uint32_t hash_table_lookup(const hash_table_t* table, const field_elem_t* key, int q) {
     uint32_t hash = hash_key(key, table->key_size, q);
     int bucket = hash % table->num_buckets;
-    
+
     hash_entry_t* entry = table->buckets[bucket];
     while (entry) {
         if (memcmp(entry->key, key, table->key_size * sizeof(field_elem_t)) == 0) {
@@ -254,7 +254,7 @@ static uint32_t hash_table_lookup(const hash_table_t* table, const field_elem_t*
         }
         entry = entry->next;
     }
-    
+
     return UINT32_MAX; // Not found
 }
 
@@ -269,45 +269,45 @@ int gbd_search_fq(
     int n,                                 // Code length
     const int* filter_set,                 // Filter positions (size s)
     int s,                                 // Filter set size
-    int target_weight,                     // Stop when finding weight ≤ target_weight
+    int target_weight,                     // Stop when finding weight <= target_weight
     fq_vector_t* best_vector_out,          // Output: best codeword found
     int* best_weight_out                   // Output: weight of best codeword
 ) {
     if (k <= 0 || s <= 0 || !field || !generator_rows || !filter_set) return -1;
-    
+
     int q = field->q;
     int k1 = k / 2;
     int k2 = k - k1;
-    
+
     // Estimate hash table size
     int table_size = 1;
     for (int i = 0; i < s && i < 10; i++) table_size *= q; // Avoid overflow
     if (table_size > MAX_KEY_SIZE) table_size = MAX_KEY_SIZE;
-    
+
     hash_table_t* L1 = hash_table_create(table_size, s);
     if (!L1) return -1;
-    
+
     fq_vector_t* v1 = vector_alloc(n);
     fq_vector_t* v2 = vector_alloc(n);
     fq_vector_t* candidate = vector_alloc(n);
     field_elem_t* key = malloc(s * sizeof(field_elem_t));
     field_elem_t* neg_key = malloc(s * sizeof(field_elem_t));
     field_elem_t* digits = calloc(k1, sizeof(field_elem_t));
-    
+
     if (!v1 || !v2 || !candidate || !key || !neg_key || !digits) {
         hash_table_free(L1);
         vector_free(v1); vector_free(v2); vector_free(candidate);
         free(key); free(neg_key); free(digits);
         return -1;
     }
-    
+
     int best_weight = n + 1;
     uint32_t gray_counter = 0;
     int changed_pos;  // Declare here for proper scope
-    
+
     // Phase 1: Build L1 table using q-ary Gray code
     vector_clear(v1);
-    
+
     do {
         // Compute linear combination: v1 = sum(digits[i] * generator_rows[i])
         vector_clear(v1);
@@ -322,27 +322,27 @@ int gbd_search_fq(
                 }
             }
         }
-        
+
         if (nonzero) {
             // Extract key from filter positions
             for (int i = 0; i < s; i++) {
                 key[i] = v1->coords[filter_set[i]];
             }
-            
+
             // Store in hash table
             hash_table_insert(L1, key, gray_counter, q);
         }
-        
+
         // Increment q-ary Gray code
         qary_gray_increment(digits, k1, q, &changed_pos);
         gray_counter++;
-        
+
     } while (changed_pos != -1 && gray_counter < (1U << 20)); // Reasonable limit
-    
+
     // Phase 2: Search L2 for collisions
     memset(digits, 0, k2 * sizeof(field_elem_t));
     gray_counter = 0;
-    
+
     do {
         // Compute v2 = sum(digits[i] * generator_rows[k1 + i])
         vector_clear(v2);
@@ -356,47 +356,47 @@ int gbd_search_fq(
                 }
             }
         }
-        
+
         if (nonzero) {
             // Compute negated key for collision detection
             for (int i = 0; i < s; i++) {
                 neg_key[i] = field_neg(field, v2->coords[filter_set[i]]);
             }
-            
+
             // Look for collision in L1
             uint32_t l1_gray = hash_table_lookup(L1, neg_key, q);
             if (l1_gray != UINT32_MAX) {
                 // Collision found! Reconstruct L1 vector and compute candidate
                 // TODO: Implement Gray code reconstruction from gray_counter
                 // For now, recompute (inefficient but correct)
-                
+
                 vector_add_inplace(candidate, v2, field);
                 int weight = vector_hamming_weight(candidate);
-                
+
                 if (weight > 0 && weight < best_weight) {
                     best_weight = weight;
                     memcpy(best_vector_out->coords, candidate->coords, n * sizeof(field_elem_t));
-                    
+
                     if (weight <= target_weight) {
                         break; // Found sufficiently good solution
                     }
                 }
             }
         }
-        
-        // Increment q-ary Gray code  
+
+        // Increment q-ary Gray code
         qary_gray_increment(digits, k2, q, &changed_pos);
         gray_counter++;
-        
+
     } while (changed_pos != -1 && gray_counter < (1U << 20));
-    
+
     *best_weight_out = best_weight;
-    
+
     // Cleanup
     hash_table_free(L1);
     vector_free(v1); vector_free(v2); vector_free(candidate);
     free(key); free(neg_key); free(digits);
-    
+
     return (best_weight <= n) ? 0 : -1;
 }
 

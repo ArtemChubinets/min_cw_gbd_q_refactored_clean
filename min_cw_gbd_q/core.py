@@ -27,45 +27,46 @@ from sage.all import vector
 try:
     from .gbd_fast import pack_key_q_fast, linear_combination_fast, gbd_core_optimized
     USE_CYTHON = True
-    print("🚀 Using Cython-optimized GBD core")
+    print("Using Cython-optimized GBD core")
 except ImportError:
     USE_CYTHON = False
-    print("⚠️  Cython extension not available, using Python fallback")
+    print("WARNING: Cython extension not available, using Python fallback")
 
 from .utils_q import pack_key_q, row_to_int_q
 
 
 def _lin_comb(F, rows, coeffs, n):
     """Compute linear combination of matrix rows over F_q.
-    
+
     Uses Cython optimization if available for better performance.
     """
     if USE_CYTHON:
         return linear_combination_fast(coeffs, rows, F)
-
-    result = [F.zero() for _ in range(n)]
-    for coeff, row in zip(coeffs, rows):
-        for j in range(n):
-            result[j] += coeff * row[j]
-    return vector(F, result)
+    else:
+        # Fallback Python version
+        result = [F.zero() for _ in range(n)]
+        for coeff, row in zip(coeffs, rows):
+            for j in range(n):
+                result[j] += coeff * row[j]
+        return vector(F, result)
 
 
 def gbd_search_q(G1, G2, s, q, S_list):
     """Generalized Birthday Algorithm over F_q.
-    
+
     Parameters:
     - G1, G2: Generator matrix parts
     - s: Size of filter sets (unused, kept for API compatibility)
-    - q: Field characteristic  
+    - q: Field characteristic
     - S_list: List of filter sets
-    
+
     Uses Cython optimization if available for significantly better performance
     on all finite fields GF(q).
     """
     # For API compatibility - reconstruct full G from G1, G2
     from sage.all import block_matrix
     G = block_matrix([[G1], [G2]])
-    
+
     F = G.base_ring()
 
     # random_S_list yields a generator; materialize it so len() and re-iteration work.
@@ -74,8 +75,9 @@ def gbd_search_q(G1, G2, s, q, S_list):
     if USE_CYTHON:
         # Use optimized Cython core
         return gbd_core_optimized(G1, G2, S_list, F, max_iter=len(S_list))
-
-    return _gbd_search_q_python(G1, G2, S_list, q)
+    else:
+        # Fallback to original Python implementation
+        return _gbd_search_q_python(G1, G2, S_list, q)
 
 
 def _gbd_search_q_python(G1, G2, S_list, q):
@@ -257,13 +259,13 @@ def exhaustive_gbd_q(G, q):
     s = math.ceil(k / 2)
     G1 = G.matrix_from_rows(range(k // 2))
     G2 = G.matrix_from_rows(range(k // 2, k))
-    
+
     # Generate all possible S-sets of size s
     from itertools import combinations
     S_list = list(combinations(range(n), s))
-    
+
     print(f"Exhaustive GBD: {len(S_list)} S-sets of size {s}")
-    
+
     return gbd_search_q(G1, G2, s, q, S_list)
 
 
@@ -293,18 +295,18 @@ def random_gbd_q(G, q, max_attempts=100):
     """Monte Carlo GBD: sample random S-sets."""
     import random
     from itertools import combinations
-    
+
     n = G.ncols()
     k = G.nrows()
     s = math.ceil(k / 2)
     G1 = G.matrix_from_rows(range(k // 2))
     G2 = G.matrix_from_rows(range(k // 2, k))
-    
+
     all_S_sets = list(combinations(range(n), s))
-    
+
     best_w = n + 1
     best_vec = None
-    
+
     for _ in range(max_attempts):
         S_list = random.sample(all_S_sets, min(10, len(all_S_sets)))
         vec = gbd_search_q(G1, G2, s, q, S_list)
@@ -313,7 +315,7 @@ def random_gbd_q(G, q, max_attempts=100):
             if w < best_w:
                 best_w = w
                 best_vec = vec
-    
+
     return best_vec
 
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-RED tests for ``min_cw_gbd_q.estimates_q`` — the corrected q-ary GBD estimates.
+Tests for ``min_cw_gbd_q.estimates_q`` - the corrected q-ary GBD estimates.
 
 The q-ary generalized Birthday Decoding keeps the *same* collision contract as
 the binary algorithm:
@@ -15,7 +15,7 @@ the s random positions of the filter set S is, exactly,
     p_w = C(n-w, s) / C(n, s)
 
 This value depends only on the *support* of the word, so it is INDEPENDENT of
-q — the q-1 possible nonzero symbols never enter the formula.
+q - the q-1 possible nonzero symbols never enter the formula.
 
 The expected number of codewords of exact weight w in a random [n,k]_q code is
 
@@ -33,7 +33,7 @@ inside ``compute_S_target_q`` instead of ``p_w``.
 
 import sys, os
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[0])))
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 

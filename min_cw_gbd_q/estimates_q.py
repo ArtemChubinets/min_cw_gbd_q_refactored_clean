@@ -1,5 +1,5 @@
 """
-estimates_q.py — Theoretical estimates for q-ary GBD (Generalized Birthday Decoding).
+estimates_q.py - Theoretical estimates for q-ary GBD (Generalized Birthday Decoding).
 
 Extends the binary (q=2) Birthday Decoding to general prime powers q=2,3,5,7.
 All formulas reduce to the known binary case when q=2.
@@ -16,9 +16,9 @@ Created: 2026-08-09
 import math
 from scipy.special import gammaln
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # 1. q-ary entropy
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def H_q(x: float, q: int) -> float:
     """q-ary entropy function.
@@ -39,9 +39,9 @@ def H_q(x: float, q: int) -> float:
     return -(term1 + term2)
 
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # 2. Gilbert-Varshamov bound for F_q
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def log_q_binomial_term(n: int, w: int, q: int) -> float:
     """log_q[ C(n,w) · (q-1)^w ] using lgamma for numerical stability."""
@@ -58,7 +58,7 @@ def gilbert_varshamov_bound_q(n: int, k: int, q: int) -> int:
         sum_{i=0}^{d-1} C(n,i) · (q-1)^i < q^{n-k}
 
     Uses logarithmic summation via lgamma for numerical stability.
-    When Delta > 60·ln(q), the new term dominates — safe to stop adding.
+    When Delta > 60·ln(q), the new term dominates - safe to stop adding.
     """
     target = n - k  # log_q of the volume: q^{n-k}
     cum_sum = 0.0
@@ -72,7 +72,7 @@ def gilbert_varshamov_bound_q(n: int, k: int, q: int) -> int:
         else:
             delta = log_term - cum_sum
             if delta > 60:
-                # New term dominates — cumulative sum ≈ log_term
+                # New term dominates - cumulative sum ~ log_term
                 cum_sum = log_term
                 cum_terms = 1
             else:
@@ -103,9 +103,9 @@ def article_gilbert_varshamov_bound_q(n, k, q):
 
 
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # 3. Expected codeword count and spectrum
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def expected_codewords(n: int, w: int, k: int, q: int) -> float:
     """E[A_w] = C(n,w) · (q-1)^w / q^{n-k}.
@@ -116,9 +116,9 @@ def expected_codewords(n: int, w: int, k: int, q: int) -> float:
     return q ** log_val
 
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # 4. p_w: probability of a weight-w word projecting to 0 on S
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def _log_binom(n: int, k: int) -> float:
     """log of binomial coefficient: ln(C(n,k))."""
@@ -158,9 +158,9 @@ def p_w_zero_projection_exact(w: int, n: int, s: int, q: int) -> float:
     """
     return p_w_zero_projection(w, n, s, q)
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # 5. S_target: expected collision count per L1 slot
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 
 def compute_S_target_q(n: int, k: int, target_w: int, s: int, q: int) -> float:
@@ -194,9 +194,9 @@ def compute_S_spectrum_q(n: int, k: int, target_w: int, s: int, q: int) -> list[
         spectrum.append(cum)
     return spectrum
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # 6. Full complexity T_total(d)
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def compute_theoretical_complexity_logq(
     n: int, k: int, q: int, alpha: float = 1.0, d: float = 0.3
@@ -210,7 +210,7 @@ def compute_theoretical_complexity_logq(
         d: collision_depth fraction (default 0.3)
 
     Returns:
-        log_q(T_total) — exponent, useful for comparing with brute force log_q(q^k) = k
+        log_q(T_total) - exponent, useful for comparing with brute force log_q(q^k) = k
     """
     d_gv = gilbert_varshamov_bound_q(n, k, q)
     target_w = int(alpha * d_gv)
@@ -224,6 +224,7 @@ def compute_theoretical_complexity_logq(
     if S_target < 1e-10:
         return float('inf')
 
+    L1 = k1  # log_q(q^{k1})
     L2 = k2  # log_q(q^{k2})
 
     col_prob = k1 - s  # log_q(q^{k1} / q^s)
@@ -247,7 +248,7 @@ def compute_theoretical_complexity_logq(
 
     # log_q(q^{k1}) = k1
     # Inner term: L2_tilde · (1 + q^{k1}/q^s) in log space
-    # 1 + q^{k1}/q^s ≈ q^{col_prob} when col_prob > 0
+    # 1 + q^{k1}/q^s ~ q^{col_prob} when col_prob > 0
     inner_log = l2_tilde + max(0, col_prob)  # approximate: L2_tilde * q^{col_prob}
 
     max_log = max(k1, inner_log)
@@ -261,9 +262,9 @@ def compute_theoretical_complexity_logq(
     return total_log
 
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # 7. Optimal s search
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def find_optimal_s(
     n: int, k: int, q: int, alpha: float = 1.0, d: float = 0.3
@@ -274,7 +275,7 @@ def find_optimal_s(
     For q>2, the optimal s may differ.
 
     Returns:
-        (s_opt, log_q_T) — optimal s and corresponding complexity
+        (s_opt, log_q_T) - optimal s and corresponding complexity
     """
     best_s = k // 2
     best_logT = float('inf')
@@ -289,6 +290,7 @@ def find_optimal_s(
         if S_target < 1e-10:
             continue
 
+        L1 = k1
         L2 = k2
         col_prob = k1 - s  # log_q(q^{k1} / q^s)
 
@@ -315,27 +317,27 @@ def find_optimal_s(
     return best_s, best_logT
 
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # 8. Entropy estimate
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def compute_entropy_estimate(n: int, k: int, q: int, alpha: float = 1.0) -> float:
     """Simplified entropy-based complexity estimate.
 
-    T ≈ q^{n · H_q(R/2)}  where R = k/n.
+    T ~ q^{n · H_q(R/2)}  where R = k/n.
 
     This is the leading term; the full formula subtracts a correction.
 
     Returns:
-        log_q(T) ≈ n · H_q(R/2)
+        log_q(T) ~ n · H_q(R/2)
     """
     R = k / n
     return n * H_q(R / 2, q)
 
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # 9. Collision depth model
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def compute_expected_min_weight_q(
     n: int, k: int, q: int, alpha: float = 1.0, d: float = 0.3
@@ -343,7 +345,7 @@ def compute_expected_min_weight_q(
     """Expected minimum weight found by GBD with collision_depth = d.
 
     Combines hit probability in window (P_A) + fallback (P_B).
-    Returns E_min — expected weight of the found codeword.
+    Returns E_min - expected weight of the found codeword.
     """
     d_gv = gilbert_varshamov_bound_q(n, k, q)
     target_w = int(alpha * d_gv)
@@ -384,6 +386,10 @@ def compute_expected_min_weight_q(
     return E_min
 
 
+# ======================================================================
+# 10. Self-test: verify q=2 matches binary case
+# ======================================================================
+
 def compare_gbd_brute(n: int, k: int, q: int) -> dict:
     """Compare GBD complexity vs brute force for a single (n,k,q) point."""
     gbd_log = compute_theoretical_complexity_logq(n, k, q)
@@ -398,9 +404,9 @@ def compare_gbd_brute(n: int, k: int, q: int) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # 10. Self-test: verify q=2 matches binary case
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def _self_test():
     """Quick validation that q=2 matches known binary results."""
@@ -408,25 +414,25 @@ def _self_test():
 
     # Entropy
     assert abs(H_q(0.5, 2) - 1.0) < 1e-10, f"H_2(0.5) should be 1.0, got {H_q(0.5, 2)}"
-    assert abs(H_q(0.11, 2) - 0.5) < 0.01, f"H_2(0.11) ≈ 0.5, got {H_q(0.11, 2)}"
-    print("  H_q(x,2) = binary entropy ✓")
+    assert abs(H_q(0.11, 2) - 0.5) < 0.01, f"H_2(0.11) ~ 0.5, got {H_q(0.11, 2)}"
+    print("  H_q(x,2) = binary entropy OK")
 
     # GV bound for [50,20]_2 should be around 9
     d_gv = gilbert_varshamov_bound_q(50, 20, 2)
     assert 8 <= d_gv <= 11, f"d_GV(50,20)_2 should be ~9, got {d_gv}"
-    print(f"  d_GV(50,20)_2 = {d_gv} ✓")
+    print(f"  d_GV(50,20)_2 = {d_gv} OK")
 
-    # E[A_w] sum for [50,20]_2 — total expected codewords
+    # E[A_w] sum for [50,20]_2 - total expected codewords
     total = sum(expected_codewords(50, w, 20, 2) for w in range(1, 51))
-    # Expected total ≈ 1 (random code has ~1 word of each weight on average)
-    print(f"  Sum E[A_w] for [50,20]_2 = {total:.1f} (expect ~2^k/2^(n-k) ≈ 1)")
+    # Expected total ~ 1 (random code has ~1 word of each weight on average)
+    print(f"  Sum E[A_w] for [50,20]_2 = {total:.1f} (expect ~2^k/2^(n-k) ~ 1)")
 
     # Complexity comparison
     result = compare_gbd_brute(50, 20, 2)
     print(f"  [50,20]_2: GBD={result['logq_T_GBD']}, brute={result['logq_T_brute']}")
     print(f"  GBD vs brute: {result['GBD_vs_brute']:+.1f} log2")
 
-    print("\n=== All self-tests passed ✓ ===")
+    print("\n=== All self-tests passed OK ===")
 
 
 if __name__ == "__main__":
@@ -440,4 +446,4 @@ if __name__ == "__main__":
             r = compare_gbd_brute(n, k, q)
             winner = "GBD" if r['GBD_vs_brute'] < 0 else "brute"
             print(f"  [{n},{k}]_{q}: GBD={r['logq_T_GBD']}, brute={r['logq_T_brute']}, "
-                  f"Δ={r['GBD_vs_brute']:+.1f} → {winner}")
+                  f"Δ={r['GBD_vs_brute']:+.1f} -> {winner}")

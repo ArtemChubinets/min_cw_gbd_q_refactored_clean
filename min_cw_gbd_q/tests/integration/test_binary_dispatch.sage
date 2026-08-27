@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-RED test for the q=2 dispatch contract.
+Integration test for the q=2 dispatch contract.
 
 ``min_cw_gbd_q.min_cw_gbd_q`` must delegate its GF(2) work to the existing
 optimized binary backend ``min_cw_gbd.min_cw_gbd`` without changing its
@@ -11,21 +11,24 @@ codeword.
 The binary backend lives in a *sibling* repository, so this test inserts its
 parent directory onto ``sys.path`` before importing it.
 
-Expected to FAIL right now because ``min_cw_gbd_q`` does not exist.
 """
 
 import sys, os, random
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[0])))
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-_BINARY_PARENT = "/home/vsevolod/Projects/seminar_programs"
-if _BINARY_PARENT not in sys.path:
+_BINARY_PARENT = os.environ.get("MIN_CW_GBD_BINARY_PARENT")
+if _BINARY_PARENT and _BINARY_PARENT not in sys.path:
     sys.path.insert(0, _BINARY_PARENT)
 
-from min_cw_gbd import min_cw_gbd          # binary backend (sibling repo)
-from min_cw_gbd_q import min_cw_gbd_q      # q-ary public API (RED: missing)
+try:
+    from min_cw_gbd import min_cw_gbd
+except ImportError:
+    min_cw_gbd = None
+
+from min_cw_gbd_q import min_cw_gbd_q
 
 
 def make_binary_generator(k, n):
@@ -55,6 +58,9 @@ def test_q2_dispatch_matches_binary():
 
 
 def _run_all():
+    if min_cw_gbd is None:
+        print("test_binary_dispatch: SKIP (binary backend not installed)")
+        return
     test_q2_dispatch_matches_binary()
     print("test_binary_dispatch: ALL PASS")
 

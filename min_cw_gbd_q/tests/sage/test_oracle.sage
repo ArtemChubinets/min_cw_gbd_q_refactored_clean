@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-RED oracle tests for ``min_cw_gbd_q.min_cw_gbd_q`` — brute-force verification
-of the returned minimum-weight codeword over GF(2), GF(3), GF(4), GF(5),
-GF(8), GF(9).
+Oracle tests for ``min_cw_gbd_q.min_cw_gbd_q`` - brute-force verification
+of the returned minimum-weight codeword over GF(3), GF(4), GF(5), GF(8),
+GF(9). The optional GF(2) backend is covered by the integration test.
 
 For every field we build a small *deterministic* full-rank code, enumerate ALL
 nonzero messages to obtain the true minimum Hamming weight (the oracle), then
@@ -13,12 +13,14 @@ require that the public API returns a codeword satisfying:
     * hamming_weight(result) is correct (independently recomputed)
     * hamming_weight(result) == the brute-force oracle minimum
 
-Expected to FAIL right now because ``min_cw_gbd_q`` does not exist.
 """
 
-import sys, os, random
+import itertools
+import os
+import random
+import sys
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[0])))
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -72,40 +74,31 @@ def check_field(q, k):
     )
 
 
-def _run_all():
-    random.seed(int(0))  # make the q=2 (binary dispatch) path reproducible
-    for (q, k) in [(2, 6), (3, 5), (4, 5), (5, 5), (8, 4), (9, 4)]:
-        check_field(q, k)
-    print("test_oracle: ALL PASS")
-
-
-_run_all()
-
 def test_gbd_path():
     """Test that GBD path (not brute force) works correctly for larger cases."""
-    # q=5, k=9: q^k=1,953,125 > _BRUTE_LIMIT=1,048,576 → forces GBD
+    # q=5, k=9: q^k=1,953,125 > _BRUTE_LIMIT=1,048,576 -> forces GBD
     q, k = 5, 9
-    n = k + 4  # n=13, rate ≈ 0.69
-    
+    n = k + 4  # n=13, rate ~ 0.69
+
     # Create a random systematic generator matrix over GF(5)
     F = GF(q)
     G = matrix(F, k, n)
-    
+
     # Identity part
     for i in range(k):
         G[i, i] = F(1)
-    
-    # Random parity-check part  
+
+    # Random parity-check part
     for i in range(k):
         for j in range(k, n):
             G[i, j] = F.random_element()
-    
+
     C = LinearCode(G)
-    
+
     # Verify this triggers GBD path, not brute force
     _BRUTE_LIMIT = 1 << 20
     assert q ** k > _BRUTE_LIMIT, f"Expected GBD path but q^k={q**k} <= {_BRUTE_LIMIT}"
-    
+
     # Compute oracle minimum via brute force (for small codes this is still feasible)
     # We create a smaller systematic subcode to get oracle truth
     oracle_min = float("inf")
@@ -116,12 +109,12 @@ def test_gbd_path():
                 for j in range(k, n):
                     codeword[j] += info_bits[i] * G[i, j]
             oracle_min = min(oracle_min, codeword.hamming_weight())
-    
-    # Test our implementation  
+
+    # Test our implementation
     from min_cw_gbd_q import min_cw_gbd_q
     result = min_cw_gbd_q(C, max_total_attempts=500)
     w = result.hamming_weight()
-    
+
     # For this test, we primarily check it doesn't crash and returns reasonable weight
     # (exact oracle comparison would be expensive for full q^k space)
     assert 1 <= w <= n, f"Unreasonable weight {w} not in [1,{n}]"
@@ -130,11 +123,14 @@ def test_gbd_path():
 
 
 def _run_all():
-    random.seed(int(0))  # make the q=2 (binary dispatch) path reproducible
-    for (q, k) in [(2, 6), (3, 5), (4, 5), (5, 5), (8, 4), (9, 4)]:
+    random.seed(int(0))
+    for (q, k) in [(3, 5), (4, 5), (5, 5), (8, 4), (9, 4)]:
         check_field(q, k)
-    
-    # Test GBD path specifically  
+
+    # Test GBD path specifically
     test_gbd_path()
-    
+
     print("test_oracle: ALL PASS")
+
+
+_run_all()

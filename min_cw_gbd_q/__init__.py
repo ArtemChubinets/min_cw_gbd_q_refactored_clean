@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""min_cw_gbd_q — Generalized Birthday Decoding (meet-in-the-middle) over F_q.
+"""min_cw_gbd_q - Generalized Birthday Decoding (meet-in-the-middle) over F_q.
 
 Public API mirrors ``min_cw_gbd``:
 
@@ -88,7 +88,7 @@ def min_cw_gbd_q(C, max_total_attempts=5000, collision_depth=0, alpha=1.1,
         G1, G2, s, q, random_S_list(n, s, max_total_attempts),
         target_w, collision_depth, no_tail, alpha, max_total_attempts)
 
-    # Backward-compatible exact oracles — ONLY when return_metadata is False.
+    # Backward-compatible exact oracles - ONLY when return_metadata is False.
     if not return_metadata:
         work = math.comb(n, s) * (q ** (k // 2) + q ** (k - k // 2))
         if work <= _EXHAUSTIVE_WORK_LIMIT:

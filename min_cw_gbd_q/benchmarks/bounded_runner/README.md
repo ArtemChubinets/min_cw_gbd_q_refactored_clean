@@ -1,24 +1,24 @@
-# min_cw_GBD_Fq vs Sage — Minimum-Weight Codeword Benchmark
+# min_cw_GBD_Fq vs Sage - Minimum-Weight Codeword Benchmark
 
 Benchmark harness comparing two minimum-weight codeword finders on fixed
 systematic `[100,30]` linear codes over `GF(3)`, `GF(4)`, and `GF(5)`:
 
-- **gbd** — `min_cw_gbd_q.min_cw_gbd_q(C)` (module under test)
-- **sage** — `C._minimum_weight_codeword()` (Sage baseline oracle)
+- **gbd** - `min_cw_gbd_q.min_cw_gbd_q(C)` (module under test)
+- **sage** - `C._minimum_weight_codeword()` (Sage baseline oracle)
 
 Each arm is invoked with NO extra arguments (no backend/algorithm keyword). The
 weight of the returned Sage vector is taken as `int(cw.hamming_weight())`.
 
 ## Files
 
-- `bench_worker.py` — subprocess worker (run by Sage) that performs ONE
+- `bench_worker.py` - subprocess worker (run by Sage) that performs ONE
   invocation of ONE arm on a fixed code, times it with `time.perf_counter()`,
   and prints a single `RESULT <json>` line to stdout. Exit code 0 on success,
   1 on exception.
-- `benchmark_runner.py` — plain-Python3 parent orchestrator (no Sage import)
+- `benchmark_runner.py` - plain-Python3 parent orchestrator (no Sage import)
   that runs the worker in isolated subprocesses, records warmups + timed
   repeats, and writes the CSV/JSON/provenance outputs.
-- `README.md` — this document.
+- `README.md` - this document.
 
 ## Code construction (fixed systematic [100,30])
 
@@ -81,9 +81,9 @@ capping the virtual address space of the invocation.
 
 ## Censored-row semantics
 
-- **timeout** — `subprocess.TimeoutExpired`; recorded as `weight=None`,
+- **timeout** - `subprocess.TimeoutExpired`; recorded as `weight=None`,
   `time=None`.
-- **error** — non-zero return code with no parseable `RESULT ` line; the parent
+- **error** - non-zero return code with no parseable `RESULT ` line; the parent
   records the last 500 chars of stderr (fallback `no RESULT line; rc=<code>`).
 - A parsed `RESULT ` line is used verbatim (its `status`/`weight`/`time`/`error`),
   so a worker that exits non-zero with a `RESULT ` line still reports its own
@@ -96,15 +96,15 @@ it with `os.makedirs(outdir, exist_ok=True)` before launching subprocesses, and
 runs every worker with `cwd=outdir` (Sage's GAP interface chdir's into the
 process cwd and crashes if it is not writable).
 
-1. `results_trials.csv` — one row per subprocess invocation.
+1. `results_trials.csv` - one row per subprocess invocation.
    Columns: `q,n,k,code_seed,arm,repeat_index,rng_seed,status,weight,time_seconds,error,wall_timeout,mem_limit_mb`.
-2. `results_summary.csv` — one row per `(q, code_seed)`.
+2. `results_summary.csv` - one row per `(q, code_seed)`.
    Columns: `q,code_seed,gbd_mean_time,sage_mean_time,ratio_time,gbd_weight,sage_weight,ratio_weight,gbd_n_completed,gbd_n_censored,sage_n_completed,sage_n_censored`.
-3. `results.json` — `config` object (all parameters + timestamp) and `codes`
+3. `results.json` - `config` object (all parameters + timestamp) and `codes`
    array, one element per `(q, code_seed)` with `q`, `code_seed`, `trials`
    (every individual trial's `arm,repeat_index,rng_seed,status,weight,time,error`)
    and `summary` (means, ratios, counts).
-4. `provenance.json` — `timestamp_utc`, `n`, `k`, `fields`, `seeds` (explicit
+4. `provenance.json` - `timestamp_utc`, `n`, `k`, `fields`, `seeds` (explicit
    list of every `(q, code_seed)`), `repeats`, `warmup`, `wall_timeout`,
    `mem_limit_mb`, `sage_path`, `repo_root`, `sage_version` (first line of
    `sage --version`), `git_commit` (`git -C <repo> rev-parse HEAD`, null on

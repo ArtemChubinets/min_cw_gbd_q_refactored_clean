@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-RED tests for ``min_cw_gbd_q.utils_q`` — the q-ary packing/unpacking helpers and
+Tests for ``min_cw_gbd_q.utils_q`` - the q-ary packing/unpacking helpers and
 the collision -> candidate-subtraction contract.
 
 Wished-for public API (mirrors ``min_cw_gbd/utils.py``, adapted to F_q):
@@ -21,13 +21,11 @@ For the Givaro extension fields GF(4), GF(8), GF(9) the obvious coercion
 Arithmetic (addition/subtraction, linear combinations) must always be genuine
 field arithmetic, never integers modulo q.
 
-These tests are EXPECTED TO FAIL right now because ``min_cw_gbd_q.utils_q``
-does not exist.
 """
 
 import sys, os, itertools
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[0])))
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 

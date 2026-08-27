@@ -24,7 +24,7 @@ Aggregation per (q, k) point, with ``rate = k / n``:
                          ``cost_factor = T_total / expected_attempts``
 
 The cost factor reduces EXACTLY to ``3 * q**(k/2)`` when ``collision_depth == 1``
-and ``k`` is even (the ensemble config) — verified numerically via
+and ``k`` is even (the ensemble config) - verified numerically via
 ``full_prediction``: for even k and d=1,
 ``scan_fraction(S, 1) = 1`` so
 ``T_total = q^(k/2) * (1 + 2*1) / (1 - e^-S) = 3 q^(k/2) * expected_attempts``.
@@ -146,7 +146,7 @@ def collect_points(directories):
 
 
 def print_cap_table(points, ks):
-    print("\ncap_rate (fraction of capped codes) — rows q, columns k:")
+    print("\ncap_rate (fraction of capped codes) - rows q, columns k:")
     header = ["q"] + ["k=%d" % k for k in ks]
     print("  ".join("%10s" % h for h in header))
     by_key = {(p[0], p[1]): p[4] for p in points}
@@ -269,7 +269,7 @@ def main():
         ) else ""
         print(
             "  q=%d n=%d k=%d rate=%.3f  n_hit=%d/%d cap=%d/%d  "
-            "w_mean=%.3f±%.3f  attempts=%.3f  E_min=%.3f  T_total=%.3g  "
+            "w_mean=%.3f+/-%.3f  attempts=%.3f  E_min=%.3f  T_total=%.3g  "
             "cost_factor=%.3g%s"
             % (q, n, k, rate, agg["n_hit"], agg["n_codes"], agg["n_cap"],
                agg["n_codes"],
