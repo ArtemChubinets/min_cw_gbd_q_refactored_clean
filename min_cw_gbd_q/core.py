@@ -40,7 +40,7 @@ def _lin_comb(F, rows, coeffs, n):
 
     Uses Cython optimization if available for better performance.
     """
-    if USE_CYTHON:
+    if USE_CYTHON and rows:
         return linear_combination_fast(coeffs, rows, F)
     else:
         # Fallback Python version

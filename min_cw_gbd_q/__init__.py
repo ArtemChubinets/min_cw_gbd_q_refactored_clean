@@ -16,6 +16,9 @@ exact minimum Hamming weight.
 When ``return_metadata=True`` (q > 2 only) the call additionally returns the
 theory-validation telemetry produced by ``gbd_search_q_contract`` (attempts,
 window/tail scan counters, hit phase, and the returned weight).
+
+Use ``find_min_weight_codeword`` to explicitly select an exact backend for
+an entire code or a fixed set of zero coordinates.
 """
 import math
 import os
@@ -114,3 +117,34 @@ def min_cw_gbd_q(C, max_total_attempts=5000, collision_depth=0, alpha=1.1,
     if return_metadata:
         return candidate, meta
     return candidate
+
+
+def find_min_weight_codeword(C, *, algorithm='gbd', S=None, **options):
+    """Select a minimum-word search algorithm for a Sage linear code ``C``.
+
+    The default, ``'gbd'``, calls :func:`min_cw_gbd_q` with the same options
+    and return behavior. It is not guaranteed exact and does not accept an
+    explicit ``S``. Use ``'gbd_collision'`` for a full fixed-set GBD scan.
+
+    The exact algorithms are ``'gbd_collision'``, ``'enumeration'``,
+    ``'binary_c'``, ``'acm994'`` and ``'sage_gap'``. They return a minimum
+    nonzero Sage vector vanishing on ``S`` in the original coordinates, or
+    ``None`` if that subcode has dimension zero. ``S`` is an iterable of
+    distinct zero-based indices; ``None`` and ``()`` both mean the whole code.
+
+    ``'binary_c'`` and ``'acm994'`` require GF(2). For ``'binary_c'``, pass
+    ``library=...`` or set ``QGBD_BINARY_C_LIBRARY``; otherwise the package's
+    ``src/binary_all_collisions`` directory is searched. This backend accepts
+    ``split=...`` and supports up to 24 coordinates in ``S`` and 30 rows per
+    half. For ``'acm994'``, pass ``executable=...`` or set
+    ``QGBD_ACM994_EXECUTABLE``; otherwise the default local build and then
+    ``PATH`` are searched. The other exact backends take no extra options.
+    """
+    if algorithm == 'gbd':
+        if S is not None:
+            raise ValueError("'gbd' does not accept S; use algorithm='gbd_collision'")
+        return min_cw_gbd_q(C, **options)
+
+    from .oracles import _exact_minimum_weight_codeword
+
+    return _exact_minimum_weight_codeword(C, algorithm, S, options)

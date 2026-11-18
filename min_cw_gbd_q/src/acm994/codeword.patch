@@ -1,0 +1,427 @@
+--- a/data_defs.h
++++ b/data_defs.h
+@@ -51,6 +51,7 @@
+   int       rowStride;      // Old name: rowStride.
+   int       actualNumCols;  // Old name: actualRowSize.
+   int       rank;
++  int       * originalColumn;  // Packed position -> input position.
+ };
+ 
+ typedef struct SavedCombi SavedCombi;
+--- a/luf2.c
++++ b/luf2.c
+@@ -28,6 +28,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include "luf2.h"
++#include "codeword_hooks.h"
+ 
+ 
+ // ============================================================================
+@@ -109,6 +110,7 @@
+         // Pivot non-zero element into position (ii,j).
+         swap_rows( mat, k, n, ii, iPivot );
+         swap_columns( mat, k, n, j, jPivot );
++        acm994_swap_columns( j, jPivot );
+       }
+     }
+     if( mat[ n * ii + j ] != 0 ) {
+--- a/generations.c
++++ b/generations.c
+@@ -44,6 +44,10 @@
+ #include "alg_gray.h"
+ #include "alg_common.h"
+ #include "generations.h"
++#include "codeword_hooks.h"
++#include <string.h>
++
++#define printf acm994_log
+ 
+ 
+ // ============================================================================
+@@ -51,7 +55,7 @@
+ 
+ static void create_vector_of_gamma_matrices(
+     int numGammaMatrices, GammaMatrix ** vecGammaMatrices,
+-    int numRows, int rowStride );
++    int numRows, int rowStride, int nInput );
+ 
+ static void remove_vector_of_gamma_matrices(
+     int numGammaMatrices, GammaMatrix * vecGammaMatrices );
+@@ -89,7 +93,8 @@
+ static void diagonalize_input_matrix(
+     int cfg_print_matrices,
+     int kInput, int nInput, char * inputMatrix,
+-    int numGammaMatrices, GammaMatrix * vecGammaMatrices );
++    int numGammaMatrices, GammaMatrix * vecGammaMatrices,
++    int * originalColumn );
+ 
+ static void generate_permutation( int n, int * vecPermut );
+ 
+@@ -132,7 +137,7 @@
+ int compute_distance_of_matrix( char * inputMatrix, int kInput, int nInput ) {
+   int          cfg_alg, cfg_num_saved_generators,
+                cfg_num_cores, cfg_num_permutations, cfg_print_matrices,
+-               info, kGamma, nGamma, numGammaMatrices,
++               kGamma, nGamma, numGammaMatrices,
+                minDist;
+   double       t1, t2;
+   GammaMatrix  * vecGammaMatrices;
+@@ -145,18 +150,12 @@
+   // Initialize module for counting ones.
+   init_computing_kernels_module();
+ 
+-  // Read the configuration file.
+-  info = read_config( & cfg_alg,
+-                      & cfg_num_saved_generators,
+-                      & cfg_num_cores,
+-                      & cfg_num_permutations,
+-                      & cfg_print_matrices );
+-  if( info != 0 ) {
+-    fprintf( stderr, "\n" );
+-    fprintf( stderr, "ERROR in compute_distance_of_matrix: " );
+-    fprintf( stderr, "Error reading file 'config.in'.\n\n\n" );
+-    exit( -1 );
+-  }
++  // The witness hook is used by the serial saved-combination kernel.
++  cfg_alg = ALG_SAVED;
++  cfg_num_saved_generators = kInput < 2 ? 1 : 2;
++  cfg_num_cores = 1;
++  cfg_num_permutations = 5;
++  cfg_print_matrices = 0;
+ 
+   // Print input matrix.
+   if( cfg_print_matrices == 1 ) {
+@@ -206,7 +205,7 @@
+ 
+     // Create and initialize the vector of Gamma matrices.
+     create_vector_of_gamma_matrices( numGammaMatrices, & vecGammaMatrices,
+-        kInput, nGamma );
++        kInput, nGamma, nInput );
+ 
+     // Create and initialize data structures for saving addition of
+     // combinations.
+@@ -269,7 +268,7 @@
+ // ============================================================================
+ static void create_vector_of_gamma_matrices(
+     int numGammaMatrices, GammaMatrix ** vecGammaMatrices,
+-    int numRows, int rowStride ) {
++    int numRows, int rowStride, int nInput ) {
+ //
+ // Create and initialize with empty values a vector with numGammaMatrices
+ // Gamma matrices.
+@@ -300,6 +299,8 @@
+     ( * vecGammaMatrices )[ i ].rowStride     = rowStride;
+     ( * vecGammaMatrices )[ i ].actualNumCols = -1;
+     ( * vecGammaMatrices )[ i ].rank          = -1;
++    create_uninitialized_int_vector( "Gamma column map",
++        & ( * vecGammaMatrices )[ i ].originalColumn, nInput );
+   }
+   printf( "End of creating vector of Gamma matrices.\n" );
+ }
+@@ -319,6 +320,7 @@
+     if( vecGammaMatrices[ i ].buffer != NULL ) {
+       free( vecGammaMatrices[ i ].buffer );
+     }
++    free( vecGammaMatrices[ i ].originalColumn );
+   }
+   // Remove the vector of GammaMatrix objects.
+   free( vecGammaMatrices );
+@@ -451,7 +453,6 @@
+ // condition is found.
+ //
+   int         lowerDist, upperDist, done, i, j,
+-              numGammaMatricesProcessed, numGammaMatricesContributing,
+               minDist;
+   double      t2;
+   SavedCombi  * vecSavedCombisJm1;
+@@ -465,8 +466,8 @@
+       lowerDist++;
+     }
+   }
+-  // Initialize upperDist to the number of columns.
+-  upperDist = nInput;
++  // No initial witness: even weight n must be recorded.
++  upperDist = nInput + 1;
+   printf( "Distance Loop. lowerDist: %d  upperDist: %d \n",
+           lowerDist, upperDist );
+   done = ( lowerDist >= upperDist ? 1 : 0 );
+@@ -488,37 +489,14 @@
+   for( i = 1; ( i <= kInput )&&( ! done ); i++ ) {
+     printf( "  Generators: %d\n", i );
+ 
+-    // Compute the number of contributiong Gamma matrices.
+-    numGammaMatricesProcessed = 0;
+-    for( j = 1; j <= numGammaMatrices; j++ ) {
+-      if( vecGammaMatrices[ j - 1 ].rank + i - kInput >= 0 ) {
+-        numGammaMatricesProcessed++;
+-      }
+-    }
+-    if( numGammaMatricesProcessed == 0 ) {
+-      numGammaMatricesProcessed = 1;
+-    }
+-    printf( "  numGMatProcessed: %d\n", numGammaMatricesProcessed );
+-
+-    numGammaMatricesContributing = 0;
+-    for( j = 1; j <= numGammaMatrices; j++ ) {
+-      //// printf( "    j: %d  \n",  j );
+-      //// printf( "    upperDist: %d \n",  upperDist );
+-      //// printf( "    numGMatProcessed: %d \n",  numGammaMatricesProcessed );
+-      //// printf( "    kInput: %d \n",  kInput );
+-      //// printf( "    vecGammaMatrices[ j - 1 ].rank: %d \n",
+-      ////         vecGammaMatrices[ j - 1 ].rank );
+-      if( ( ( upperDist / numGammaMatricesProcessed ) - 1 ) >=
+-          ( kInput - vecGammaMatrices[ j - 1 ].rank ) ) {
+-        numGammaMatricesContributing++;
+-      }
+-    }
+-    printf( "  numGMatContrib:   %d\n", numGammaMatricesContributing );
+-
++    // Visit every Gamma at each combination size. In a Gamma of
++    // rank r whose sizes through i were searched, an unseen candidate
++    // has > i selected rows and thus >= max(0, i+1-(k-r)) ones in its
++    // pivot columns. Pivot blocks are disjoint, so these bounds add.
+     //
+     // Process gamma matrix "j".
+     //
+-    for( j = 1; ( j <= numGammaMatricesContributing )&&( ! done ); j++ ) {
++    for( j = 1; ( j <= numGammaMatrices )&&( ! done ); j++ ) {
+       printf( "    Gamma Matrix: %d of %d \n", j, numGammaMatrices );
+ 
+       // Set vecSavedCombisJm1.
+@@ -531,6 +509,7 @@
+ 
+       // Compute upperDist:
+       // Generate combinations of "k" elements taken by "i" elements.
++      acm994_use_columns( vecGammaMatrices[ j - 1 ].originalColumn );
+       minDist = generate_combinations( cfg_alg, cfg_num_saved_generators,
+                     cfg_num_cores,
+                     vecGammaMatrices[ j - 1 ],
+@@ -538,12 +517,6 @@
+                     kInput, i );
+       //// printf( "  minDist: %d \n", minDist );
+ 
+-      // Update the minimum distance for those matrices where the diagonalized
+-      // block has been removed.
+-      if( vecGammaMatrices[ j - 1 ].rank == kInput ) {
+-        minDist += i;
+-      }
+-
+       // Update upperDist with current distance.
+       if( ( minDist != 0 )&&( minDist < upperDist ) ) {
+         upperDist = minDist;
+@@ -633,7 +606,7 @@
+   } else if( cfg_alg == ALG_SAVED ) {
+     // Algorithm with data savings.
+     dist = generate_with_saved_alg( cfg_num_saved_generators, cfg_num_cores,
+-               g, vecSavedCombi, numTotalElems, numElemsToTake, 1 );
++               g, vecSavedCombi, numTotalElems, numElemsToTake, 0 );
+ 
+   } else if( cfg_alg == ALG_SAVED_UNROLLED ) {
+     // Algorithm with data savings and unrolling.
+@@ -687,7 +660,7 @@
+ //
+   char         * inputMatrixCopy;
+   GammaMatrix  * vecGammaMatricesCopy;
+-  int          * vecPermut;
++  int          * vecPermut, * originalColumn;
+   int          iter, i, comparison;
+ 
+   // Create a matrix for storing a copy of inputMatrix.
+@@ -696,11 +669,13 @@
+ 
+   // Create a new data structure for storing Gamma matrices.
+   create_vector_of_gamma_matrices( numGammaMatrices, & vecGammaMatricesCopy,
+-      kInput, nGamma );
++      kInput, nGamma, nInput );
+ 
+   // Create the vector for storing a permutation.
+   create_uninitialized_int_vector( "diagonalize_several_permuted_matrices",
+          & vecPermut, nInput );
++  create_uninitialized_int_vector( "working column permutation",
++         & originalColumn, nInput );
+ 
+   // Initialize the seed for generating the permutations.
+   srand( 11 );
+@@ -731,11 +706,15 @@
+     //// printf( "\n" );
+     //// printf( "End of permutation.\n" );
+ 
++    // permut_matrix writes original column i at permuted column vecPermut[i].
++    for( i = 0; i < nInput; ++i ) originalColumn[ vecPermut[ i ] ] = i;
++    acm994_use_columns( originalColumn );
++
+     // Diagonalize permuted matrix.
+     printf( "Diagonalizing permuted matrix %d\n", iter );
+     diagonalize_input_matrix( cfg_print_matrices,
+         kInput, nInput, inputMatrixCopy,
+-        numGammaMatrices, vecGammaMatricesCopy );
++        numGammaMatrices, vecGammaMatricesCopy, originalColumn );
+ 
+     printf( "Matrix diagonalized.\n" );
+     fflush( stdout );
+@@ -761,7 +740,11 @@
+       copy_vector_of_gamma_matrices(
+           numGammaMatrices,
+           vecGammaMatrices,
+-          vecGammaMatricesCopy );
++           vecGammaMatricesCopy );
++      for( i = 0; i < numGammaMatrices; ++i )
++        memcpy( vecGammaMatrices[ i ].originalColumn,
++                vecGammaMatricesCopy[ i ].originalColumn,
++                ( size_t ) nInput * sizeof( int ) );
+     }
+   }
+ 
+@@ -779,6 +762,8 @@
+   printf( "\n\n" );
+ 
+   // Remove the permutation vector.
++  acm994_use_columns( NULL );
++  free( originalColumn );
+   free( vecPermut );
+ 
+   // Remove the new data structure for storing Gamma matrices.
+@@ -792,17 +777,13 @@
+ static void diagonalize_input_matrix(
+     int cfg_print_matrices,
+     int kInput, int nInput, char * inputMatrix,
+-    int numGammaMatrices, GammaMatrix * vecGammaMatrices ) {
++    int numGammaMatrices, GammaMatrix * vecGammaMatrices,
++    int * originalColumn ) {
+ //
+ // It diagonalizes input submatrices inside inputMatrix.
+ // It generates one result: a gammaMatrix for every block diagonalized.
+ //
+-  int     i, jStart, rank, ii, jj, nbits;
+-  char    * inputMatrixCopy;
+-
+-  // Create and initialize a matrix to store a copy the input matrix.
+-  create_uninitialized_char_vector( "diagonalize_input_matrix",
+-         & inputMatrixCopy, kInput * nInput );
++  int     i, jStart, rank, nbits;
+ 
+   // Diagonalize matrix.
+   jStart =  0;
+@@ -813,38 +794,15 @@
+     // Diagonalize matrix.
+     diagonalize_block( inputMatrix, kInput, nInput, jStart, & rank );
+ 
+-    // Remove the diagonalized part, if needed.
+-    if( rank == kInput ) {
+-      // Full rank matrix: Remove the diagonalized part.
+-      // Make a copy of inputMatrix into inputMatrixCopy removing the
+-      // identity out of it.
+-      set_char_matrix_to_zero( inputMatrixCopy, kInput, nInput );
+-      for( ii = 0; ii < kInput; ii++ ) {
+-        for( jj = 0; jj < jStart; jj++ ) {
+-          inputMatrixCopy[ ii * nInput + jj ] =
+-              inputMatrix[ ii * nInput + jj ];
+-        }
+-        for( jj = jStart + rank; jj < nInput; jj++ ) {
+-          inputMatrixCopy[ ii * nInput + ( jj - rank ) ] =
+-              inputMatrix[ ii * nInput + jj ];
+-        }
+-      }
+-      //// print_char_matrix( "copy", inputMatrixCopy, kInput, nInput );
+-    } else {
+-      // Rank-defficient matrix: No changes to input matrix.
+-      copy_char_matrix( kInput, nInput, inputMatrixCopy, inputMatrix );
+-    }
+-
+-    // Print matrices.
+-    if( cfg_print_matrices == 1 ) {
+-      printf( "Rank: %d \n", rank );
++    // Keep the entire codeword (including the pivot columns) in the
++    // packed rows, and take a snapshot of its column order at this stage.
++    memcpy( vecGammaMatrices[ i ].originalColumn, originalColumn,
++            ( size_t ) nInput * sizeof( int ) );
++    if( cfg_print_matrices == 1 )
+       print_char_matrix( "Final matrix", inputMatrix, kInput, nInput );
+-      print_char_matrix( "Copy matrix ", inputMatrixCopy, kInput, nInput );
+-      printf( "\n" );
+-    }
+ 
+     // Store diagonalized matrix into gamma matrix.
+-    compact_matrix( inputMatrixCopy,
++    compact_matrix( inputMatrix,
+         vecGammaMatrices[ i ].buffer, kInput, nInput,
+         vecGammaMatrices[ i ].rowStride );
+ 
+@@ -862,12 +820,7 @@
+ 
+     // Store the actualNumCols: The actual number of columns to be processed.
+     nbits = 8 * sizeof( uint32_t );
+-    if( rank == kInput ) {
+-      vecGammaMatrices[ i ].actualNumCols = ( nInput - kInput + nbits - 1 ) /
+-                                            nbits;
+-    } else {
+-      vecGammaMatrices[ i ].actualNumCols = ( nInput + nbits - 1 ) / nbits;
+-    }
++    vecGammaMatrices[ i ].actualNumCols = ( nInput + nbits - 1 ) / nbits;
+ 
+     // Update jStart.
+     jStart += rank;
+@@ -879,8 +832,7 @@
+   ////       gammaMatrices, kGamma, nGamma );
+   //// }
+ 
+-  // Remove copy of input matrix.
+-  free( inputMatrixCopy );
++
+ }
+ 
+ // ============================================================================
+--- a/computing_kernels.c
++++ b/computing_kernels.c
+@@ -32,6 +32,11 @@
+ #include "check_combinations.h"
+ #include "computing_kernels.h"
+ #include "computing_kernels_vect.h"
++#include "codeword_hooks.h"
++
++#ifdef USE_VECTORIZATION
++#error "The codeword hook requires the scalar saved-combination kernel"
++#endif
+ 
+ // ============================================================================
+ // Declaration of local variables.
+@@ -79,10 +84,14 @@
+ //
+   int  dist;
+ 
++#ifdef __POPCNT__
++  dist = __builtin_popcount( a );
++#else
+   dist = vecNumOnes[ ( int ) ( ( uint8_t ) ( ( a >> 24 ) & 0xFF ) ) ] +
+          vecNumOnes[ ( int ) ( ( uint8_t ) ( ( a >> 16 ) & 0xFF ) ) ] +
+          vecNumOnes[ ( int ) ( ( uint8_t ) ( ( a >>  8 ) & 0xFF ) ) ] +
+          vecNumOnes[ ( int ) ( ( uint8_t ) ( ( a       ) & 0xFF ) ) ];
++#endif
+ 
+   return( dist );
+ }
+@@ -271,6 +280,7 @@
+ // combinations with fewer elements.
+ //
+   uint32_t  * ptr2, c;
++  const uint32_t * bestRow = NULL;
+   int       i, j, minDist, dist;
+ #ifdef CHECK_COMBINATIONS
+   uint32_t  * vecAdditionAux;
+@@ -476,6 +486,7 @@
+     }
+     if( ( dist != 0 )&&( ( minDist <= 0 )||( dist < minDist ) ) ) {
+       minDist = dist;
++      bestRow = & gammaMatrices[ rowStride * i ];
+     }
+ #ifdef CHECK_COMBINATIONS
+     //// printf( "i: %d \n", i );
+@@ -489,6 +500,7 @@
+ 
+ #endif
+ 
++  if( bestRow != NULL ) acm994_consider_word( minDist, n, vecAddition, bestRow );
+   return( minDist );
+ }
+ 

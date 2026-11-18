@@ -1,0 +1,2 @@
+# Unified diff context lines require a leading space, even on blank lines.
+min_cw_gbd_q/src/acm994/codeword.patch text eol=lf whitespace=-blank-at-eol,-blank-at-eof
